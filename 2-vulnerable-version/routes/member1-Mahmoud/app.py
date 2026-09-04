@@ -1,6 +1,7 @@
 from flask import Flask, request
 import os
 import urllib.request
+import sys
 import sqlite3
 
 app = Flask(__name__)
@@ -92,11 +93,11 @@ def login():
     username = request.form.get('username', '')
     password = request.form.get('password', '')
 
-    conn = sqlite3.connect(DB_FILE)
-
     # VULNERABLE: username and password are glued directly into the
     # SQL query string, instead of being passed as safe parameters.
     query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
+
+    conn = sqlite3.connect(DB_FILE)
     result = conn.execute(query).fetchall()
     conn.close()
 
@@ -115,7 +116,7 @@ def debug_info():
     <p>App file location: {os.path.abspath(__file__)}</p>
     <p>Database file: {os.path.abspath(DB_FILE)}</p>
     <p>Current working directory: {os.getcwd()}</p>
-    <p>Python version: {os.sys.version}</p>
+    <p>Python version: {sys.version}</p>
     <p>Server OS: {os.name}</p>
     """
     return info
