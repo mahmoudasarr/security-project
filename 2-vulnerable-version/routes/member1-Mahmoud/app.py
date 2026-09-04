@@ -27,6 +27,7 @@ def home():
         <li><a href="/fetch?url=http://example.com">/fetch</a> - SSRF</li>
         <li><a href="/ping?ip=127.0.0.1">/ping</a> - OS Command Injection</li>
         <li><a href="/login">/login</a> - SQL Injection</li>
+        <li><a href="/debug">/debug</a> - Information Disclosure</li>
     </ul>
     """
 
@@ -102,6 +103,22 @@ def login():
     if result:
         return "Login successful!"
     return "Invalid credentials."
+
+
+# 5. INFORMATION DISCLOSURE
+@app.route('/debug')
+def debug_info():
+    # VULNERABLE: exposes internal server details that should never
+    # be visible to a normal visitor (file paths, environment, etc.)
+    info = f"""
+    <h3>Debug Info</h3>
+    <p>App file location: {os.path.abspath(__file__)}</p>
+    <p>Database file: {os.path.abspath(DB_FILE)}</p>
+    <p>Current working directory: {os.getcwd()}</p>
+    <p>Python version: {os.sys.version}</p>
+    <p>Server OS: {os.name}</p>
+    """
+    return info
 
 
 if __name__ == '__main__':
