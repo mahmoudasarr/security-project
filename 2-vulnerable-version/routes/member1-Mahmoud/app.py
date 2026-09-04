@@ -1,71 +1,57 @@
 from flask import Flask, request
 import os
 import urllib.request
-import ipaddress
-import socket
-import shlex
-import subprocess
+import sqlite3
 
 app = Flask(__name__)
+
+DB_FILE = "users.db"
+
+
+# Creates the database and a test user, only if it doesn't exist yet.
+def init_db():
+    if not os.path.exists(DB_FILE):
+        conn = sqlite3.connect(DB_FILE)
+        conn.execute("CREATE TABLE users (username TEXT, password TEXT)")
+        conn.execute("INSERT INTO users VALUES ('admin', '123456')")
+        conn.commit()
+        conn.close()
 
 
 @app.route('/')
 def home():
     return """
-    <h2>Secured App - Demo Routes</h2>
+    <h2>Vulnerable App - Demo Routes</h2>
     <ul>
-        <li><a href="/read?file=app.py">/read</a> - Path Traversal (fixed)</li>
-        <li><a href="/fetch?url=http://example.com">/fetch</a> - SSRF (fixed)</li>
-        <li><a href="/ping?ip=127.0.0.1">/ping</a> - OS Command Injection (fixed)</li>
+        <li><a href="/read?file=app.py">/read</a> - Path Traversal</li>
+        <li><a href="/fetch?url=http://example.com">/fetch</a> - SSRF</li>
+        <li><a href="/ping?ip=127.0.0.1">/ping</a> - OS Command Injection</li>
+        <li><a href="/login?username=admin&password=123456">/login</a> - SQL Injection</li>
     </ul>
     """
 
 
-# ==================================================
-# 1. PATH TRAVERSAL - FIXED
-# ==================================================
+# 1. PATH TRAVERSAL
 @app.route('/read')
 def read_file():
     file_name = request.args.get('file', 'app.py')
 
+    # Get folder path of this file, so it works from any folder.
     base_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(base_dir, file_name)
 
-    # FIX: build the full path, then resolve it (removes any "..").
-    file_path = os.path.abspath(os.path.join(base_dir, file_name))
-
-    # FIX: only allow the file if it's still inside base_dir.
-    if not file_path.startswith(base_dir + os.sep):
-        return "Error: access denied.", 403
-
-    if not os.path.isfile(file_path):
-        return "Error: file not found.", 404
-
+    # VULNERABLE: file_name is used with no check.
     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
         content = f.read()
     return f"<pre>{content}</pre>"
 
 
-# ==================================================
-# 2. SSRF - FIXED
-# ==================================================
+# 2. SSRF
 @app.route('/fetch')
 def fetch_url():
     target_url = request.args.get('url', 'http://example.com')
 
-    # FIX: only allow http/https, and block requests to private/internal
-    # IP ranges (localhost, 127.0.0.1, internal networks, etc.).
-    try:
-        parsed = urllib.request.urlparse(target_url)
-        if parsed.scheme not in ('http', 'https'):
-            return "Error: only http/https URLs are allowed.", 400
-
-        host = parsed.hostname
-        ip = socket.gethostbyname(host)
-        if ipaddress.ip_address(ip).is_private:
-            return "Error: requests to private addresses are blocked.", 400
-    except Exception:
-        return "Error: invalid URL.", 400
-
+    # VULNERABLE: server visits any URL with no check.
     response = urllib.request.urlopen(target_url)
     content = response.read().decode('utf-8', errors='ignore')
     return f"<pre>{content}</pre>"
@@ -76,27 +62,36 @@ def admin_panel():
     return "SECRET ADMIN PANEL: Only accessible internally!"
 
 
-# ==================================================
-# 3. OS COMMAND INJECTION - FIXED
-# ==================================================
+# 3. OS COMMAND INJECTION
 @app.route('/ping')
 def ping():
     ip = request.args.get('ip', '127.0.0.1')
 
-    # FIX: check the input looks like a real IP address before using it.
-    try:
-        ipaddress.ip_address(ip)
-    except ValueError:
-        return "Error: invalid IP address.", 400
+    # VULNERABLE: user input goes straight into the command.
+    command = "ping -c 1 " + ip
+    output = os.popen(command).read()
+    return f"<pre>{output}</pre>"
 
-    # FIX: pass arguments as a list (no shell), so there is no room
-    # for extra shell commands to be injected.
-    result = subprocess.run(
-        ["ping", "-c", "1", ip],
-        capture_output=True, text=True
-    )
-    return f"<pre>{result.stdout}</pre>"
+
+# 4. SQL INJECTION
+@app.route('/login')
+def login():
+    username = request.args.get('username', '')
+    password = request.args.get('password', '')
+
+    conn = sqlite3.connect(DB_FILE)
+
+    # VULNERABLE: username and password are glued directly into the
+    # SQL query string, instead of being passed as safe parameters.
+    query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
+    result = conn.execute(query).fetchall()
+    conn.close()
+
+    if result:
+        return "Login successful!"
+    return "Invalid credentials."
 
 
 if __name__ == '__main__':
+    init_db()
     app.run(port=5000, debug=True)
