@@ -26,7 +26,7 @@ def home():
         <li><a href="/read?file=app.py">/read</a> - Path Traversal</li>
         <li><a href="/fetch?url=http://example.com">/fetch</a> - SSRF</li>
         <li><a href="/ping?ip=127.0.0.1">/ping</a> - OS Command Injection</li>
-        <li><a href="/login?username=admin&password=123456">/login</a> - SQL Injection</li>
+        <li><a href="/login">/login</a> - SQL Injection</li>
     </ul>
     """
 
@@ -74,10 +74,22 @@ def ping():
 
 
 # 4. SQL INJECTION
-@app.route('/login')
+@app.route('/login', methods=['GET', 'POST'])
 def login():
-    username = request.args.get('username', '')
-    password = request.args.get('password', '')
+    # Show the login form on a normal GET request.
+    if request.method == 'GET':
+        return """
+        <h2>Login</h2>
+        <form method="POST">
+            Username: <input type="text" name="username"><br>
+            Password: <input type="password" name="password"><br>
+            <input type="submit" value="Login">
+        </form>
+        """
+
+    # Handle the form submission (POST).
+    username = request.form.get('username', '')
+    password = request.form.get('password', '')
 
     conn = sqlite3.connect(DB_FILE)
 
