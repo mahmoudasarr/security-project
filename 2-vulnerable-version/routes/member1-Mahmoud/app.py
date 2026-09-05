@@ -36,25 +36,26 @@ def home():
     </ul>
     """
 
-# 1. PATH TRAVERSAL (Supports direct absolute paths and relative traversal)
+# 1. PATH TRAVERSAL
 @app.route('/read')
 def read_file():
-    file_name = request.args.get('file', 'app.py')
-    
-    # If the user inputs an absolute path starting with '/', use it directly.
-    # Otherwise, combine it with the current directory for relative/traversal paths.
-    if file_name.startswith('/'):
-        file_path = file_name
-    else:
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        file_path = base_dir + "/" + file_name
+    # Get the filename from the URL.
+    filename = request.args.get('file', 'app.py')
 
     try:
-        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-            content = f.read()
-        return f"<pre>{content}</pre>"
+        # VULNERABLE: The user controls the file path directly.
+        with open(filename, 'r') as file:
+            content = file.read()
+
+        return f"<h2>File Content</h2><pre>{content}</pre>"
+
     except Exception as e:
-        return f"Error: {str(e)}", 400
+        return f"Error reading file: {str(e)}", 400
+
+# Internal Admin Panel (Hidden target for SSRF demo)
+@app.route('/admin')
+def admin_panel():
+    return "<h3>Welcome to the Internal Admin Panel!</h3><p>Flag: FLAG{SSRF_Internal_Access_Success}</p>"
 
 # 2. SSRF (Server-Side Request Forgery)
 @app.route('/fetch')
