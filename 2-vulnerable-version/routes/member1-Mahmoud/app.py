@@ -36,28 +36,25 @@ def home():
     </ul>
     """
 
-# 1. PATH TRAVERSAL
+# 1. PATH TRAVERSAL (Supports direct absolute paths and relative traversal)
 @app.route('/read')
 def read_file():
-    # Get the file name from the URL. Default is 'app.py'.
     file_name = request.args.get('file', 'app.py')
     
-    # Get the exact folder where this code file lives.
-    # This fixes the error shown in your picture.
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    # VULNERABLE: We add the file name directly with a slash.
-    # An attacker can use '../' to go back and read other files.
-    file_path = base_dir + "/" + file_name
+    # If the user inputs an absolute path starting with '/', use it directly.
+    # Otherwise, combine it with the current directory for relative/traversal paths.
+    if file_name.startswith('/'):
+        file_path = file_name
+    else:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = base_dir + "/" + file_name
 
-    # Check if the file exists and is a real file (not a folder).
-    if os.path.isfile(file_path):
+    try:
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             content = f.read()
         return f"<pre>{content}</pre>"
-    else:
-        # Show a simple error message instead of crashing the app.
-        return "Error: File not found or invalid path.", 404
+    except Exception as e:
+        return f"Error: {str(e)}", 400
 
 # 2. SSRF (Server-Side Request Forgery)
 @app.route('/fetch')
