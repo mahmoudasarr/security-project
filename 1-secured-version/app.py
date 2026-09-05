@@ -53,9 +53,15 @@ def read_file():
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
 
+<<<<<<< HEAD
     # FIXED: reject any absolute path, ".." traversal attempt, or null
     # byte, then confirm the final resolved path is still inside base_dir.
     if filename.startswith("/") or ".." in filename or "\x00" in filename:
+=======
+    # FIXED: reject any absolute path or ".." traversal attempt, then
+    # confirm the final resolved path is still inside base_dir.
+    if filename.startswith("/") or ".." in filename:
+>>>>>>> 9ad6cc5c71a5f940bfbdefb8c13e8d4e55f403c5
         return "Invalid filename", 400
 
     file_path = os.path.realpath(os.path.join(base_dir, filename))
