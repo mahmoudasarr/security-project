@@ -10,6 +10,7 @@ DB_FILE = "users.db"
 COMMENTS = []
 ACCOUNT = {"email": "victim@example.com"}
 
+
 def init_db():
     # Create the database and a test user if it does not exist.
     if not os.path.exists(DB_FILE):
@@ -19,7 +20,8 @@ def init_db():
         conn.commit()
         conn.close()
 
-@app.route('/')
+
+@app.route("/")
 def home():
     # Show the main menu with all vulnerability links.
     return """
@@ -36,15 +38,24 @@ def home():
     </ul>
     """
 
+
 # 1. PATH TRAVERSAL
-@app.route('/read')
+@app.route("/read")
 def read_file():
-    # Get the filename from the URL.
-    filename = request.args.get('file', 'app.py')
+    # Automatically use the name of the current file (even if it is not called app.py)
+    default_file = os.path.basename(__file__)
+    filename = request.args.get("file", default_file)
+
+    # Select the full path of the folder to ensure that the files are read successfully
+    if filename.startswith("/"):
+        file_path = filename
+    else:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = base_dir + "/" + filename
 
     try:
         # VULNERABLE: The user controls the file path directly.
-        with open(filename, 'r') as file:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as file:
             content = file.read()
 
         return f"<h2>File Content</h2><pre>{content}</pre>"
@@ -52,10 +63,20 @@ def read_file():
     except Exception as e:
         return f"Error reading file: {str(e)}", 400
 
-# Internal Admin Panel (Hidden target for SSRF demo)
+
+# Internal Admin Panel (Protected from direct browser access)
 @app.route('/admin')
 def admin_panel():
+    # Check the visitor's identity via User-Agent
+    user_agent = request.headers.get('User-Agent', '')
+    
+    # If the visitor is using a regular browser (Chrome, Firefox, etc.), deny access
+    if 'Mozilla' in user_agent or 'Chrome' in user_agent:
+        return "<h1>403 Forbidden</h1><p>Access Denied: Only internal server requests are trusted.</p>", 403
+        
+    # If the request is internal (via SSRF vulnerability using Python code), allow access
     return "<h3>Welcome to the Internal Admin Panel!</h3><p>Flag: FLAG{SSRF_Internal_Access_Success}</p>"
+
 
 # 2. SSRF (Server-Side Request Forgery)
 @app.route('/fetch')
@@ -64,28 +85,31 @@ def fetch_url():
     target_url = request.args.get('url', 'http://example.com')
     try:
         # VULNERABLE: The server visits any URL without checking it.
+        # Internal Python requests send a different User-Agent and do not contain 'Mozilla'
         response = urllib.request.urlopen(target_url)
         content = response.read().decode('utf-8', errors='ignore')
         return f"<pre>{content}</pre>"
     except Exception as e:
         return f"Error fetching URL: {str(e)}", 400
 
+
 # 3. OS COMMAND INJECTION
-@app.route('/ping')
+@app.route("/ping")
 def ping():
     # Get the IP address from the URL.
-    ip = request.args.get('ip', '127.0.0.1')
-    
+    ip = request.args.get("ip", "127.0.0.1")
+
     # VULNERABLE: The app puts the IP directly into the command.
     # An attacker can add more commands using ';' or '&&'.
     command = "ping -c 1 " + ip
     output = os.popen(command).read()
     return f"<pre>{output}</pre>"
 
+
 # 4. SQL INJECTION
-@app.route('/login', methods=['GET', 'POST'])
+@app.route("/login", methods=["GET", "POST"])
 def login():
-    if request.method == 'GET':
+    if request.method == "GET":
         # Show the login page.
         return """
         <h2>Login</h2>
@@ -97,9 +121,9 @@ def login():
         """
 
     # Get data from the form.
-    username = request.form.get('username', '')
-    password = request.form.get('password', '')
-    
+    username = request.form.get("username", "")
+    password = request.form.get("password", "")
+
     # VULNERABLE: We put the username and password directly into the SQL query.
     query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
 
@@ -111,8 +135,9 @@ def login():
         return "Login successful!"
     return "Invalid credentials."
 
+
 # 5. INFORMATION DISCLOSURE
-@app.route('/debug')
+@app.route("/debug")
 def debug_info():
     # VULNERABLE: The app shows secret system information.
     info = f"""
@@ -125,12 +150,13 @@ def debug_info():
     """
     return info
 
+
 # 6. XSS (Cross-Site Scripting)
-@app.route('/comments', methods=['GET', 'POST'])
+@app.route("/comments", methods=["GET", "POST"])
 def comments():
-    if request.method == 'POST':
+    if request.method == "POST":
         # Get the comment from the user.
-        comment = request.form.get('comment', '')
+        comment = request.form.get("comment", "")
         COMMENTS.append(comment)
 
     # VULNERABLE: The app shows the comment as raw HTML.
@@ -145,24 +171,26 @@ def comments():
     {comments_html}
     """
 
+
 # 7. SSTI (Server-Side Template Injection)
-@app.route('/greet')
+@app.route("/greet")
 def greet():
     # Get the name from the URL.
-    name = request.args.get('name', 'World')
-    
+    name = request.args.get("name", "World")
+
     # VULNERABLE: The name is put into the template before rendering.
     # An attacker can use {{ }} to run code.
     template = f"<h2>Hello, {name}!</h2>"
     return render_template_string(template)
 
+
 # 8. CSRF (Cross-Site Request Forgery)
-@app.route('/account', methods=['GET', 'POST'])
+@app.route("/account", methods=["GET", "POST"])
 def account():
-    if request.method == 'POST':
+    if request.method == "POST":
         # Get the new email from the form.
-        new_email = request.form.get('email', '')
-        
+        new_email = request.form.get("email", "")
+
         # VULNERABLE: The app changes the email without checking if the request is real.
         # It does not use a CSRF token.
         ACCOUNT["email"] = new_email
@@ -180,7 +208,8 @@ def account():
     <p>Demo attacker page: <a href="/csrf_demo">/csrf_demo</a></p>
     """
 
-@app.route('/csrf_demo')
+
+@app.route("/csrf_demo")
 def csrf_demo():
     # This is a fake attacker page.
     # It will change the user's email automatically.
@@ -193,6 +222,7 @@ def csrf_demo():
     <script>document.getElementById('evil').submit();</script>
     """
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     init_db()
     app.run(port=5000, debug=True)
