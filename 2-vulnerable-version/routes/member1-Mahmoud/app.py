@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, render_template_string
 import os
 import urllib.request
 import sys
@@ -7,6 +7,7 @@ import sqlite3
 app = Flask(__name__)
 
 DB_FILE = "users.db"
+COMMENTS = []
 
 
 # Creates the database and a test user, only if it doesn't exist yet.
@@ -29,6 +30,9 @@ def home():
         <li><a href="/ping?ip=127.0.0.1">/ping</a> - OS Command Injection</li>
         <li><a href="/login">/login</a> - SQL Injection</li>
         <li><a href="/debug">/debug</a> - Information Disclosure</li>
+        <li><a href="/comments">/comments</a> - XSS</li>
+        <li><a href="/greet?name=World">/greet</a> - SSTI</li>
+        <li><a href="/account">/account</a> - CSRF</li>
     </ul>
     """
 
@@ -120,6 +124,92 @@ def debug_info():
     <p>Server OS: {os.name}</p>
     """
     return info
+
+
+# 6. XSS (Cross-Site Scripting)
+@app.route('/comments', methods=['GET', 'POST'])
+def comments():
+    if request.method == 'POST':
+        # Save whatever the user submits, exactly as typed.
+        comment = request.form.get('comment', '')
+        COMMENTS.append(comment)
+
+    # Build the list of comments as raw HTML.
+    comments_html = ""
+    for c in COMMENTS:
+        # VULNERABLE: the comment is inserted into the page with no
+        # escaping, so any HTML/JS the user typed runs as real code.
+        comments_html += f"<p>{c}</p>"
+
+    return f"""
+    <h2>Comments</h2>
+    <form method="POST">
+        <input type="text" name="comment">
+        <input type="submit" value="Post">
+    </form>
+    {comments_html}
+    """
+
+
+# 7. SSTI (Server-Side Template Injection)
+@app.route('/greet')
+def greet():
+    name = request.args.get('name', 'World')
+
+    # VULNERABLE: user input is inserted directly into the template
+    # string BEFORE it's rendered, so Jinja2 treats it as template
+    # code, not just as text.
+    template = f"<h2>Hello, {name}!</h2>"
+    return render_template_string(template)
+
+
+# 8. CSRF (Cross-Site Request Forgery)
+#
+# In-memory "logged in" user state, just for this demo.
+ACCOUNT = {"email": "victim@example.com"}
+
+
+@app.route('/account', methods=['GET', 'POST'])
+def account():
+    if request.method == 'POST':
+        new_email = request.form.get('email', '')
+
+        # VULNERABLE: this changes sensitive account data (the email)
+        # based on nothing but a POST request. There is no CSRF token,
+        # no check of the Origin/Referer header, and the session cookie
+        # (if any) would be sent automatically by the browser on a
+        # cross-site request too. Any page on the internet can make
+        # the victim's browser submit this form while they're logged
+        # in, and the change goes through.
+        ACCOUNT["email"] = new_email
+        return f"<p>Email updated to: {ACCOUNT['email']}</p><a href='/account'>Back</a>"
+
+    return f"""
+    <h2>My Account</h2>
+    <p>Current email: {ACCOUNT['email']}</p>
+    <form method="POST">
+        New email: <input type="text" name="email">
+        <input type="submit" value="Update email">
+    </form>
+    <hr>
+    <p>Demo attacker page that exploits this: <a href="/csrf_demo">/csrf_demo</a></p>
+    """
+
+
+@app.route('/csrf_demo')
+def csrf_demo():
+    # This simulates a malicious third-party page. If a logged-in
+    # victim simply visits this page, the form below auto-submits a
+    # POST to /account and silently changes their email — no click,
+    # no confirmation, no token check.
+    return """
+    <h3>Totally Harmless Page</h3>
+    <p>This page silently changes your account email on the vulnerable app.</p>
+    <form id="evil" action="/account" method="POST">
+        <input type="hidden" name="email" value="attacker@evil.com">
+    </form>
+    <script>document.getElementById('evil').submit();</script>
+    """
 
 
 if __name__ == '__main__':
