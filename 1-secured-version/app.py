@@ -6,6 +6,7 @@ import secrets
 import ipaddress
 import subprocess
 import urllib.request
+from markupsafe import escape
 from urllib.parse import urlparse
 from flask import Flask, request, render_template_string, session, abort
 
@@ -48,48 +49,30 @@ def home():
 # 1. PATH TRAVERSAL -> FIXED
 @app.route("/read")
 def read_file():
-    default_file = os.path.basename(__file__)
-    filename = request.args.get("file", default_file)
-
+    file_name = request.args.get("file", "app.py")
     base_dir = os.path.dirname(os.path.abspath(__file__))
 
-    # FIXED: reject any absolute path, ".." traversal attempt, or null
-    # byte, then confirm the final resolved path is still inside base_dir.
-    if filename.startswith("/") or ".." in filename or "\x00" in filename:
-        return "Invalid filename", 400
+    # FIX: build the full path, then resolve it (removes any "..").
+    file_path = os.path.abspath(os.path.join(base_dir, file_name))
 
-    file_path = os.path.realpath(os.path.join(base_dir, filename))
+    # FIX: only allow the file if it's still inside base_dir.
     if not file_path.startswith(base_dir + os.sep):
-        return "Invalid filename", 400
+        return "Error: access denied.", 403
 
-    try:
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as file:
-            content = file.read()
+    if not os.path.isfile(file_path):
+        return "Error: file not found.", 404
 
-        return f"<h2>File Content</h2><pre>{content}</pre>"
-
-    except Exception as e:
-        return f"Error reading file: {str(e)}", 400
-
-
-# Internal Admin Panel (Protected from direct browser access)
-@app.route('/admin')
-def admin_panel():
-    # Check the visitor's identity via User-Agent
-    user_agent = request.headers.get('User-Agent', '')
-
-    # If the visitor is using a regular browser (Chrome, Firefox, etc.), deny access
-    if 'Mozilla' in user_agent or 'Chrome' in user_agent:
-        return "<h1>403 Forbidden</h1><p>Access Denied: Only internal server requests are trusted.</p>", 403
-
-    # If the request is internal (via SSRF vulnerability using Python code), allow access
-    return "<h3>Welcome to the Internal Admin Panel!</h3><p>Flag: FLAG{SSRF_Internal_Access_Success}</p>"
+    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+        content = f.read()
+        
+    # FIX: Use escape() to prevent browser from executing embedded JS/HTML
+    return f"<pre>{escape(content)}</pre>"
 
 
 # 2. SSRF (Server-Side Request Forgery) -> FIXED
-@app.route('/fetch')
+@app.route("/fetch")
 def fetch_url():
-    target_url = request.args.get('url', 'http://example.com')
+    target_url = request.args.get("url", "http://example.com")
 
     # FIXED: only allow http/https and block requests to private/internal
     # IP ranges (localhost, 169.254.x.x, 10.x.x.x, etc.) to stop SSRF.
@@ -100,15 +83,19 @@ def fetch_url():
     try:
         ip = socket.gethostbyname(parsed.hostname)
         resolved_ip = ipaddress.ip_address(ip)
-        if resolved_ip.is_private or resolved_ip.is_loopback \
-                or resolved_ip.is_link_local or resolved_ip.is_reserved:
+        if (
+            resolved_ip.is_private
+            or resolved_ip.is_loopback
+            or resolved_ip.is_link_local
+            or resolved_ip.is_reserved
+        ):
             return "Error fetching URL: internal addresses are blocked", 400
     except Exception as e:
         return f"Error fetching URL: {str(e)}", 400
 
     try:
         response = urllib.request.urlopen(target_url)
-        content = response.read().decode('utf-8', errors='ignore')
+        content = response.read().decode("utf-8", errors="ignore")
         return f"<pre>{content}</pre>"
     except Exception as e:
         return f"Error fetching URL: {str(e)}", 400
@@ -184,7 +171,8 @@ def comments():
     # FIXED: use render_template_string with Jinja2 {{ }} placeholders
     # instead of an f-string, so Jinja2's autoescaping neutralizes any
     # HTML/JS the user submits instead of rendering it as raw HTML.
-    return render_template_string("""
+    return render_template_string(
+        """
     <h2>Comments</h2>
     <form method="POST">
         <input type="text" name="comment">
@@ -193,7 +181,9 @@ def comments():
     {% for c in comments %}
     <p>{{ c }}</p>
     {% endfor %}
-    """, comments=COMMENTS)
+    """,
+        comments=COMMENTS,
+    )
 
 
 # 7. SSTI (Server-Side Template Injection) -> FIXED
