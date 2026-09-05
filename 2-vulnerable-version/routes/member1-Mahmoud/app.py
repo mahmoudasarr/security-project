@@ -20,7 +20,7 @@ def init_db():
         conn.close()
 
 
-@app.route('/')
+@app.route("/")
 def home():
     return """
     <h2>Vulnerable App - Demo Routes</h2>
@@ -38,40 +38,40 @@ def home():
 
 
 # 1. PATH TRAVERSAL
-@app.route('/read')
+@app.route("/read")
 def read_file():
-    file_name = request.args.get('file', 'app.py')
+    file_name = request.args.get("file", "app.py")
 
     # Get folder path of this file, so it works from any folder.
     base_dir = os.path.dirname(os.path.abspath(__file__))
     file_path = os.path.join(base_dir, file_name)
 
     # VULNERABLE: file_name is used with no check.
-    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
         content = f.read()
     return f"<pre>{content}</pre>"
 
 
 # 2. SSRF
-@app.route('/fetch')
+@app.route("/fetch")
 def fetch_url():
-    target_url = request.args.get('url', 'http://example.com')
+    target_url = request.args.get("url", "http://example.com")
 
     # VULNERABLE: server visits any URL with no check.
     response = urllib.request.urlopen(target_url)
-    content = response.read().decode('utf-8', errors='ignore')
+    content = response.read().decode("utf-8", errors="ignore")
     return f"<pre>{content}</pre>"
 
 
-@app.route('/admin')
+@app.route("/admin")
 def admin_panel():
     return "SECRET ADMIN PANEL: Only accessible internally!"
 
 
 # 3. OS COMMAND INJECTION
-@app.route('/ping')
+@app.route("/ping")
 def ping():
-    ip = request.args.get('ip', '127.0.0.1')
+    ip = request.args.get("ip", "127.0.0.1")
 
     # VULNERABLE: user input goes straight into the command.
     command = "ping -c 1 " + ip
@@ -80,10 +80,10 @@ def ping():
 
 
 # 4. SQL INJECTION
-@app.route('/login', methods=['GET', 'POST'])
+@app.route("/login", methods=["GET", "POST"])
 def login():
     # Show the login form on a normal GET request.
-    if request.method == 'GET':
+    if request.method == "GET":
         return """
         <h2>Login</h2>
         <form method="POST">
@@ -94,8 +94,8 @@ def login():
         """
 
     # Handle the form submission (POST).
-    username = request.form.get('username', '')
-    password = request.form.get('password', '')
+    username = request.form.get("username", "")
+    password = request.form.get("password", "")
 
     # VULNERABLE: username and password are glued directly into the
     # SQL query string, instead of being passed as safe parameters.
@@ -111,7 +111,7 @@ def login():
 
 
 # 5. INFORMATION DISCLOSURE
-@app.route('/debug')
+@app.route("/debug")
 def debug_info():
     # VULNERABLE: exposes internal server details that should never
     # be visible to a normal visitor (file paths, environment, etc.)
@@ -127,11 +127,11 @@ def debug_info():
 
 
 # 6. XSS (Cross-Site Scripting)
-@app.route('/comments', methods=['GET', 'POST'])
+@app.route("/comments", methods=["GET", "POST"])
 def comments():
-    if request.method == 'POST':
+    if request.method == "POST":
         # Save whatever the user submits, exactly as typed.
-        comment = request.form.get('comment', '')
+        comment = request.form.get("comment", "")
         COMMENTS.append(comment)
 
     # Build the list of comments as raw HTML.
@@ -152,9 +152,9 @@ def comments():
 
 
 # 7. SSTI (Server-Side Template Injection)
-@app.route('/greet')
+@app.route("/greet")
 def greet():
-    name = request.args.get('name', 'World')
+    name = request.args.get("name", "World")
 
     # VULNERABLE: user input is inserted directly into the template
     # string BEFORE it's rendered, so Jinja2 treats it as template
@@ -169,10 +169,10 @@ def greet():
 ACCOUNT = {"email": "victim@example.com"}
 
 
-@app.route('/account', methods=['GET', 'POST'])
+@app.route("/account", methods=["GET", "POST"])
 def account():
-    if request.method == 'POST':
-        new_email = request.form.get('email', '')
+    if request.method == "POST":
+        new_email = request.form.get("email", "")
 
         # VULNERABLE: this changes sensitive account data (the email)
         # based on nothing but a POST request. There is no CSRF token,
@@ -196,7 +196,7 @@ def account():
     """
 
 
-@app.route('/csrf_demo')
+@app.route("/csrf_demo")
 def csrf_demo():
     # This simulates a malicious third-party page. If a logged-in
     # victim simply visits this page, the form below auto-submits a
@@ -212,6 +212,6 @@ def csrf_demo():
     """
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     init_db()
     app.run(port=5000, debug=True)
