@@ -99,127 +99,7 @@ def read_file():
     return f"<pre>{escape(content)}</pre>"
 
 
-# 2. SSRF — FIXED
-# Only allow fetching http(s) URLs whose hostname is in an explicit
-# allow-list, and reject anything that resolves to a private/internal
-# IP address (defends against DNS rebinding to loopback/internal IPs).
-@app.route('/fetch')
-def fetch_url():
-    target_url = request.args.get('url', 'http://example.com')
 
-    from urllib.parse import urlparse
-    parsed = urlparse(target_url)
-
-    if parsed.scheme not in ("http", "https"):
-        abort(400, description="Only http/https URLs are allowed.")
-
-    if parsed.hostname not in ALLOWED_FETCH_HOSTS:
-        abort(403, description="This host is not on the allow-list.")
-
-    try:
-        import socket
-        resolved_ip = socket.gethostbyname(parsed.hostname)
-        ip_obj = ipaddress.ip_address(resolved_ip)
-        if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local:
-            abort(403, description="Refusing to fetch internal/private addresses.")
-    except (socket.gaierror, ValueError):
-        abort(400, description="Could not resolve host.")
-
-    response = urllib.request.urlopen(target_url, timeout=5)
-    content = response.read(1_000_000).decode('utf-8', errors='ignore')
-    return f"<pre>{escape(content)}</pre>"
-
-
-# The old /admin route was reachable by anyone; removed/blocked here
-# since it served no purpose other than illustrating the original bug.
-@app.route('/admin')
-def admin_panel():
-    abort(404)
-
-
-# 3. OS COMMAND INJECTION — FIXED
-# Validate the input is actually a valid IP address (or hostname made
-# up only of safe characters), then pass arguments as a list to
-# subprocess instead of building a shell string. No shell=True.
-HOSTNAME_RE = re.compile(r'^[A-Za-z0-9.\-]+$')
-
-
-@app.route('/ping')
-def ping():
-    ip = request.args.get('ip', '127.0.0.1')
-
-    is_valid_ip = False
-    try:
-        ipaddress.ip_address(ip)
-        is_valid_ip = True
-    except ValueError:
-        pass
-
-    if not is_valid_ip and not HOSTNAME_RE.match(ip):
-        abort(400, description="Invalid IP address or hostname.")
-
-    try:
-        result = subprocess.run(
-            ["ping", "-c", "1", ip],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        output = result.stdout + result.stderr
-    except subprocess.TimeoutExpired:
-        output = "Request timed out."
-
-    return f"<pre>{escape(output)}</pre>"
-
-
-# 4. SQL INJECTION — FIXED
-# Use parameterized queries (placeholders) instead of building the
-# SQL string with f-strings/concatenation, and store hashed passwords
-# instead of plaintext.
-from werkzeug.security import generate_password_hash, check_password_hash
-
-
-def init_db_secure():
-    if not os.path.exists(DB_FILE):
-        conn = sqlite3.connect(DB_FILE)
-        conn.execute("CREATE TABLE users (username TEXT, password_hash TEXT)")
-        conn.execute(
-            "INSERT INTO users VALUES (?, ?)",
-            ("admin", generate_password_hash("123456")),
-        )
-        conn.commit()
-        conn.close()
-
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'GET':
-        token = get_csrf_token()
-        return f"""
-        <h2>Login</h2>
-        <form method="POST">
-            <input type="hidden" name="csrf_token" value="{token}">
-            Username: <input type="text" name="username"><br>
-            Password: <input type="password" name="password"><br>
-            <input type="submit" value="Login">
-        </form>
-        """
-
-    check_csrf_token()
-
-    username = request.form.get('username', '')
-    password = request.form.get('password', '')
-
-    conn = sqlite3.connect(DB_FILE)
-    row = conn.execute(
-        "SELECT password_hash FROM users WHERE username = ?",
-        (username,),
-    ).fetchone()
-    conn.close()
-
-    if row and check_password_hash(row[0], password):
-        return "Login successful!"
-    return "Invalid credentials."
 
 
 # 5. INFORMATION DISCLOSURE — FIXED
@@ -233,30 +113,7 @@ def debug_info():
     abort(404)
 
 
-# 6. XSS — FIXED
-# Escape any user-supplied content before inserting it into HTML, and
-# require a CSRF token on the POST.
-@app.route('/comments', methods=['GET', 'POST'])
-def comments():
-    if request.method == 'POST':
-        check_csrf_token()
-        comment = request.form.get('comment', '')
-        COMMENTS.append(comment)
 
-    comments_html = ""
-    for c in COMMENTS:
-        comments_html += f"<p>{escape(c)}</p>"
-
-    token = get_csrf_token()
-    return f"""
-    <h2>Comments</h2>
-    <form method="POST">
-        <input type="hidden" name="csrf_token" value="{token}">
-        <input type="text" name="comment">
-        <input type="submit" value="Post">
-    </form>
-    {comments_html}
-    """
 
 
 # 7. SSTI — FIXED
