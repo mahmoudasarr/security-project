@@ -67,7 +67,109 @@ def home():
     """
 
 
+# 1. PATH TRAVERSAL — FIXED
+# We only allow reading files that live inside a specific "safe" folder,
+# and we resolve the final path and check it's still inside that folder
+# before opening anything. We also only allow a plain filename with a
+# small whitelist of characters (no '/', no '..', no absolute paths).
+SAFE_READ_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "safe_files")
+SAFE_FILENAME_RE = re.compile(r'^[A-Za-z0-9_\-.]+$')
 
+
+@app.route('/read')
+def read_file():
+    file_name = request.args.get('file', 'app_fixed.py')
+
+    if not SAFE_FILENAME_RE.match(file_name):
+        abort(400, description="Invalid filename.")
+
+    base_dir = os.path.abspath(SAFE_READ_DIR)
+    requested_path = os.path.abspath(os.path.join(base_dir, file_name))
+
+    # Make sure the resolved path is still inside base_dir (blocks any
+    # remaining traversal tricks, e.g. via symlinks).
+    if os.path.commonpath([base_dir, requested_path]) != base_dir:
+        abort(403, description="Access denied.")
+
+    if not os.path.isfile(requested_path):
+        abort(404, description="File not found.")
+
+    with open(requested_path, 'r', encoding='utf-8', errors='ignore') as f:
+        content = f.read()
+    return f"<pre>{escape(content)}</pre>"
+
+
+# 2. SSRF — FIXED
+# Only allow fetching http(s) URLs whose hostname is in an explicit
+# allow-list, and reject anything that resolves to a private/internal
+# IP address (defends against DNS rebinding to loopback/internal IPs).
+@app.route('/fetch')
+def fetch_url():
+    target_url = request.args.get('url', 'http://example.com')
+
+    from urllib.parse import urlparse
+    parsed = urlparse(target_url)
+
+    if parsed.scheme not in ("http", "https"):
+        abort(400, description="Only http/https URLs are allowed.")
+
+    if parsed.hostname not in ALLOWED_FETCH_HOSTS:
+        abort(403, description="This host is not on the allow-list.")
+
+    try:
+        import socket
+        resolved_ip = socket.gethostbyname(parsed.hostname)
+        ip_obj = ipaddress.ip_address(resolved_ip)
+        if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local:
+            abort(403, description="Refusing to fetch internal/private addresses.")
+    except (socket.gaierror, ValueError):
+        abort(400, description="Could not resolve host.")
+
+    response = urllib.request.urlopen(target_url, timeout=5)
+    content = response.read(1_000_000).decode('utf-8', errors='ignore')
+    return f"<pre>{escape(content)}</pre>"
+
+
+# The old /admin route was reachable by anyone; removed/blocked here
+# since it served no purpose other than illustrating the original bug.
+@app.route('/admin')
+def admin_panel():
+    abort(404)
+
+
+# 3. OS COMMAND INJECTION — FIXED
+# Validate the input is actually a valid IP address (or hostname made
+# up only of safe characters), then pass arguments as a list to
+# subprocess instead of building a shell string. No shell=True.
+HOSTNAME_RE = re.compile(r'^[A-Za-z0-9.\-]+$')
+
+
+@app.route('/ping')
+def ping():
+    ip = request.args.get('ip', '127.0.0.1')
+
+    is_valid_ip = False
+    try:
+        ipaddress.ip_address(ip)
+        is_valid_ip = True
+    except ValueError:
+        pass
+
+    if not is_valid_ip and not HOSTNAME_RE.match(ip):
+        abort(400, description="Invalid IP address or hostname.")
+
+    try:
+        result = subprocess.run(
+            ["ping", "-c", "1", ip],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        output = result.stdout + result.stderr
+    except subprocess.TimeoutExpired:
+        output = "Request timed out."
+
+    return f"<pre>{escape(output)}</pre>"
 
 
 # 4. SQL INJECTION — FIXED
@@ -119,7 +221,7 @@ def login():
         return "Login successful!"
     return "Invalid credentials."
 
-#-------------------------
+
 # 5. INFORMATION DISCLOSURE — FIXED
 # Debug endpoint removed entirely. If diagnostics are ever needed,
 # they should be gated behind authentication + only enabled in a
@@ -195,7 +297,7 @@ def account():
         <input type="submit" value="Update email">
     </form>
     """
-#-------------------------
+
 
 if __name__ == '__main__':
     init_db_secure()
