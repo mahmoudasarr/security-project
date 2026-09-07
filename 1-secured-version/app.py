@@ -210,11 +210,12 @@ def get_csrf_token():
 @app.route("/account", methods=["GET", "POST"])
 def account():
     if request.method == "POST":
-        # FIXED: require a CSRF token tied to the user's own session.
-        # A forged request from another site (like /csrf_demo) cannot
-        # know this token, so the request is rejected.
+        # FIXED: require a CSRF token tied to the user's session.
+        # Uses secrets.compare_digest to prevent timing attacks.
         submitted_token = request.form.get("csrf_token", "")
-        if not submitted_token or submitted_token != session.get("csrf_token"):
+        session_token = session.get("csrf_token", "")
+
+        if not submitted_token or not session_token or not secrets.compare_digest(submitted_token, session_token):
             abort(403, description="Invalid CSRF token")
 
         # Get the new email from the form.
@@ -239,9 +240,8 @@ def account():
 
 @app.route("/csrf_demo")
 def csrf_demo():
-    # This is a fake attacker page. It tries to change the user's email
-    # automatically, but it has no way to know the real csrf_token, so
-    # /account will now reject this forged request with 403.
+    # This fake attacker page tries to submit a request to /account,
+    # but it lacks the valid session CSRF token, so it will be rejected with 403.
     return """
     <h3>Totally Harmless Page</h3>
     <p>This page tries to silently change your account email.</p>
