@@ -22,6 +22,7 @@ python app.py
 Then open: http://localhost:5000
 
 A test user is created automatically:
+
 - Username: `admin`
 - Password: `123456`
 
@@ -156,13 +157,13 @@ session-specific token.
 
 ## Summary Table
 
-| # | Vulnerability | Fix Applied |
-|---|---|---|
-| 1 | Path Traversal | Resolved path + folder containment check |
-| 2 | SSRF | Scheme whitelist + private IP blocking |
-| 3 | OS Command Injection | IP validation + `subprocess` with argument list |
-| 4 | SQL Injection | Parameterized query |
-| 5 | Information Disclosure | Route disabled (404) |
-| 6 | XSS | Jinja2 auto-escaping |
-| 7 | SSTI | Fixed template + data passed separately |
-| 8 | CSRF | Session-based CSRF token |
+| #   | Vulnerability          | Fix Applied                                     |
+| --- | ---------------------- | ----------------------------------------------- |
+| 1   | Path Traversal         | Resolved path + folder containment check        |
+| 2   | SSRF                   | Scheme whitelist + private IP blocking          |
+| 3   | OS Command Injection   | IP validation + `subprocess` with argument list |
+| 4   | SQL Injection          | Parameterized query                             |
+| 5   | Information Disclosure | Route disabled (404)                            |
+| 6   | XSS                    | Jinja2 auto-escaping                            |
+| 7   | SSTI                   | Fixed template + data passed separately         |
+| 8   | CSRF                   | Session-based CSRF token                        |

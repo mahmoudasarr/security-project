@@ -23,6 +23,17 @@ attacks actually work, and how to defend against them correctly.
 - **Backend:** Python (Flask)
 - **Database:** SQLite (single-file database, created automatically)
 
+## Project Structure
+
+```
+security-project/
+├── README.md                  (this file)
+├── 2-vulnerable-version/
+│   └── app.py
+└── 1-secured-version/
+    └── app.py
+```
+
 ## The 8 Vulnerabilities
 
 | #   | Vulnerability          | Route               | Status |
@@ -36,11 +47,65 @@ attacks actually work, and how to defend against them correctly.
 | 7   | SSTI                   | `/greet`            | Done   |
 | 8   | CSRF                   | `/account`          | Done   |
 
-**Vulnerable version:** complete — all 8 vulnerabilities implemented
-and verified working.
+Both versions are complete — all 8 vulnerabilities are implemented in
+the vulnerable version and properly fixed in the secured version.
 
-**Secured version:** in progress — the team is actively applying
-fixes for all 8 vulnerabilities.
+## Team Members and Responsibilities
+
+### Mahmoud Asar — Project Lead
+
+- Built the entire vulnerable version of the application (all 8
+  vulnerabilities: Path Traversal, SSRF, OS Command Injection, SQL
+  Injection, Information Disclosure, XSS, SSTI, CSRF).
+- Created and organized the GitHub repository for both versions.
+- Set up the project's file structure, including per-member folders
+  for the team to work in.
+- Supervised the overall project and coordinated the team's work.
+- Reviewed and fixed bugs in the secured version — specifically
+  vulnerabilities #1 (Path Traversal) and #2 (SSRF).
+- Tested both the vulnerable and secured applications end-to-end to
+  confirm they work correctly.
+- Took and organized all run screenshots.
+- Recorded and edited the project demo video for both versions.
+- Organized and prepared the final submission attachments.
+
+### Joseph
+
+- Fixed vulnerability #1 (Path Traversal) in the secured version.
+- Fixed vulnerability #5 (Information Disclosure) in the secured
+  version.
+- Fixed vulnerability #6 (XSS) in the secured version.
+- Fixed vulnerability #7 (SSTI) in the secured version.
+- Fixed vulnerability #8 (CSRF) in the secured version.
+- Split the fixes across multiple organized files.
+- Wrote documentation explaining how both versions work.
+- Assisted with several other parts of the project.
+
+### Mohamed Ali
+
+- Fixed vulnerability #2 (SSRF) in the secured version.
+- Fixed vulnerability #3 (OS Command Injection) in the secured
+  version.
+- Fixed vulnerability #4 (SQL Injection) in the secured version.
+
+### Abdelrahman Ahmed
+
+- Fixed vulnerability #7 (SSTI) in the secured version.
+- Fixed vulnerability #8 (SSRF) in the secured version.
+- Fixed Timming attack in SSRF.
+
+### Contribution Summary
+
+| #   | Vulnerability          | Vulnerable Version | Secured Version (Fix)      |
+| --- | ---------------------- | ------------------ | -------------------------- |
+| 1   | Path Traversal         | Mahmoud Asar       | Mahmoud Asar / Joseph      |
+| 2   | SSRF                   | Mahmoud Asar       | Mahmoud Asar / Mohamed Ali |
+| 3   | OS Command Injection   | Mahmoud Asar       | Mohamed Ali                |
+| 4   | SQL Injection          | Mahmoud Asar       | Mohamed Ali                |
+| 5   | Information Disclosure | Mahmoud Asar       | Joseph                     |
+| 6   | XSS                    | Mahmoud Asar       | Joseph                     |
+| 7   | SSTI                   | Mahmoud Asar       | Abelrahman                     |
+| 8   | CSRF                   | Mahmoud Asar       | Abelrahman                     |
 
 ## How the Two Versions Compare
 
@@ -60,7 +125,7 @@ blindly in the vulnerable version.
 **Vulnerable version:**
 
 ```bash
-cd vulnerable-version
+cd 2-vulnerable-version
 python app.py
 ```
 
@@ -69,12 +134,12 @@ Runs on http://localhost:5000
 **Secured version:**
 
 ```bash
-cd secured-version
+cd 1-secured-version
 python app.py
 ```
 
-See `secured-version/README.md` for the exact port and setup once
-complete.
+Runs on http://localhost:5000 (run one version at a time, or change
+the port in the secured version's code to run both together)
 
 ## Security Concept Behind This Project
 

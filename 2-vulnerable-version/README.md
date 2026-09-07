@@ -22,6 +22,7 @@ python app.py
 Then open: http://localhost:5000
 
 A test user is created automatically:
+
 - Username: `admin`
 - Password: `123456`
 
@@ -36,6 +37,7 @@ comes from the URL.
 app's folder path with no check on where it actually points.
 
 **Exploit:**
+
 ```
 http://localhost:5000/read?file=app.py
 http://localhost:5000/read?file=../../../../etc/passwd
@@ -52,6 +54,7 @@ by the user.
 check on the domain or whether it points to an internal address.
 
 **Exploit:**
+
 ```
 http://localhost:5000/fetch?url=http://example.com
 http://localhost:5000/fetch?url=http://127.0.0.1:5000/admin
@@ -68,6 +71,7 @@ by the user.
 shell command string, so extra commands can be chained after it.
 
 **Exploit:**
+
 ```
 http://localhost:5000/ping?ip=127.0.0.1
 http://localhost:5000/ping?ip=127.0.0.1; whoami
@@ -84,9 +88,11 @@ against the database.
 directly into the SQL query string.
 
 **Exploit:** In the username field on the `/login` page, enter:
+
 ```
-admin' -- 
+admin' --
 ```
+
 with any password. Login succeeds with no correct password needed.
 
 ---
@@ -99,9 +105,11 @@ with any password. Login succeeds with no correct password needed.
 version, and OS details are exposed to any visitor.
 
 **Exploit:**
+
 ```
 http://localhost:5000/debug
 ```
+
 In a real attack, this path would typically be discovered through
 **fuzzing** (e.g. with `ffuf` or `dirsearch`), not guessed directly.
 
@@ -116,9 +124,13 @@ every visitor.
 escaping.
 
 **Exploit:** Post this as a comment:
+
 ```html
-<script>alert('XSS')</script>
+<script>
+  alert("XSS");
+</script>
 ```
+
 A popup appears, proving the script executed.
 
 ---
@@ -131,9 +143,11 @@ A popup appears, proving the script executed.
 string before it's rendered, so Jinja2 treats it as template code.
 
 **Exploit:**
+
 ```
 http://localhost:5000/greet?name={{7*7}}
 ```
+
 If the page shows `Hello, 49!`, the expression was executed on the
 server.
 
@@ -147,6 +161,7 @@ server.
 with no CSRF token to verify it came from our own form.
 
 **Exploit:**
+
 1. Open `http://localhost:5000/account` — note the current email.
 2. Open `http://localhost:5000/csrf_demo` in another tab — a hidden
    form there auto-submits to `/account`.
@@ -157,16 +172,16 @@ with no CSRF token to verify it came from our own form.
 
 ## Summary Table
 
-| # | Vulnerability | Route |
-|---|---|---|
-| 1 | Path Traversal | `/read` |
-| 2 | SSRF | `/fetch` |
-| 3 | OS Command Injection | `/ping` |
-| 4 | SQL Injection | `/login` |
-| 5 | Information Disclosure | `/debug` |
-| 6 | XSS | `/comments` |
-| 7 | SSTI | `/greet` |
-| 8 | CSRF | `/account` |
+| #   | Vulnerability          | Route       |
+| --- | ---------------------- | ----------- |
+| 1   | Path Traversal         | `/read`     |
+| 2   | SSRF                   | `/fetch`    |
+| 3   | OS Command Injection   | `/ping`     |
+| 4   | SQL Injection          | `/login`    |
+| 5   | Information Disclosure | `/debug`    |
+| 6   | XSS                    | `/comments` |
+| 7   | SSTI                   | `/greet`    |
+| 8   | CSRF                   | `/account`  |
 
 ## Important Note
 
